@@ -1,197 +1,114 @@
-# Bruce ESP32-S3 Dilen Custom
+# ESP32-S3 Multi-Protocol Embedded Device
 
-A custom hardware target for [Bruce firmware](https://github.com/BruceDevices/firmware), based on Bruce 1.15 and adapted for a home-built ESP32-S3 N16R8 handheld multi-tool.
+**A custom handheld build integrating an ILI9341 display, two radio transceivers, NFC, GPS, infrared, and MicroSD around an ESP32-S3.**
 
-This repository does **not** claim authorship of Bruce. The original firmware, user interface, features, and most of the source code belong to the Bruce project and its contributors. This build adds a board target, fixed hardware pin mapping, two-button navigation, and configuration behavior for Dilen's device.
+[Hardware & pin map](CUSTOM_HARDWARE.md) · [Board integration](docs/BOARD_INTEGRATION.md) · [Build & validation](docs/VALIDATION.md) · [Upstream Bruce](https://github.com/BruceDevices/firmware)
 
-## Custom hardware
+| MCU | Display | Firmware base | Custom target |
+| --- | --- | --- | --- |
+| ESP32-S3 N16R8 | ILI9341, 240 × 320 | Bruce 1.15-derived source | `esp32s3-dilen` |
 
-- ESP32-S3 N16R8
-- ILI9341 240 x 320 display (touch not connected)
-- CC1101 Sub-GHz transceiver
-- nRF24L01 2.4 GHz transceiver
-- PN532 NFC reader/writer in I2C mode
-- NEO-M7 GPS receiver
-- IR transmitter and receiver
-- MicroSD storage
-- Two physical navigation buttons
+## Project focus
 
-## Main customizations
+This repository documents **Dilen's physical hardware integration and custom board support** for the open-source Bruce firmware. The original firmware, interface, and feature implementations are credited to the [Bruce project and its contributors](UPSTREAM_README.md).
 
-- Dedicated PlatformIO environment: `esp32s3-dilen`
-- Custom ESP32-S3 board definition
-- Two-button navigation with software debounce
-- Short press on GPIO39 selects; an 800 ms hold goes back
-- Persistent custom radio mapping and one-time migration from older settings
-- CC1101, nRF24L01, and MicroSD configured on one shared SPI bus
-- Independent SPI bus for the ILI9341 display
-- Fixed GPS, PN532, and infrared defaults
+The engineering work centers on pin allocation, shared-bus integration, board configuration, module bring-up, and two-button navigation.
 
-## Shared SPI architecture
+## Custom contributions
 
-The CC1101, nRF24L01, and MicroSD module share the same SCK, MOSI, and MISO wires. Each device has a separate chip-select line, so only one peripheral is selected at a time.
+- A dedicated PlatformIO environment, board definition, and pin header for the ESP32-S3 N16R8.
+- **Three peripherals on one SPI bus:** CC1101, nRF24L01, and MicroSD, with independent chip selects.
+- An independent SPI bus for the display.
+- PN532 over I2C and GPS over UART, plus infrared input/output.
+- Two physical buttons with software debounce and short/long-press actions.
+- Board-specific configuration defaults and migration from earlier radio pin settings.
 
-| SPI signal | ESP32-S3 |
+## System architecture
+
+```mermaid
+flowchart TD
+    MCU[ESP32-S3] --> RadioBus[Shared peripheral SPI]
+    RadioBus --> CC[CC1101]
+    RadioBus --> NRF[nRF24L01]
+    RadioBus --> SD[MicroSD]
+    MCU --> Display[Independent display SPI]
+    MCU --> I2C[PN532 on I2C]
+    MCU --> UART[GPS on UART]
+    MCU --> GPIO[Buttons and infrared]
+```
+
+## Hardware at a glance
+
+| Peripheral | Interface | Project role |
+| --- | --- | --- |
+| ILI9341 | Dedicated SPI | 240 × 320 display; touch disconnected |
+| CC1101 | Shared SPI + GDO0 | Sub-GHz radio integration |
+| nRF24L01 | Shared SPI + CE | 2.4 GHz radio integration |
+| MicroSD | Shared SPI | Removable storage |
+| PN532 | I2C | NFC module |
+| NEO-M7 | UART, 9600 baud | GPS receiver |
+| IR transmitter / receiver | GPIO | Infrared input and output |
+| Two buttons | GPIO with pull-ups | Next, select, and back |
+
+### Shared SPI allocation
+
+| Signal | ESP32-S3 GPIO |
 | --- | ---: |
-| SCK | GPIO12 |
-| MOSI | GPIO11 |
-| MISO | GPIO13 |
+| SCK | 12 |
+| MOSI | 11 |
+| MISO | 13 |
 
-| Device | CS / CSN | Extra signal |
+| Device | Chip select | Additional signal |
 | --- | ---: | --- |
-| CC1101 | GPIO10 | GDO0 = GPIO9 |
-| nRF24L01 | GPIO17 | CE = GPIO16 |
-| MicroSD | GPIO21 | — |
+| CC1101 | 10 | GDO0 = 9 |
+| nRF24L01 | 17 | CE = 16 |
+| MicroSD | 21 | — |
 
-> Keep every inactive CS/CSN line HIGH. The nRF24L01 and CC1101 must be powered from 3.3 V.
-
-## Complete pin map
-
-### ILI9341 display
-
-| Display pin | ESP32-S3 |
-| --- | ---: |
-| VCC | 3.3 V |
-| GND | GND |
-| CS | GPIO4 |
-| RST | GPIO15 |
-| DC | GPIO8 |
-| MOSI | GPIO7 |
-| SCK | GPIO6 |
-| MISO | GPIO5 |
-| LED / BL | 3.3 V |
-| Touch | Not connected |
-
-### CC1101
-
-| CC1101 pin | ESP32-S3 |
-| --- | ---: |
-| VCC | 3.3 V |
-| GND | GND |
-| SCK | GPIO12 |
-| MOSI | GPIO11 |
-| MISO | GPIO13 |
-| CSN | GPIO10 |
-| GDO0 | GPIO9 |
-| GDO2 | Not connected |
-
-### nRF24L01
-
-| nRF24L01 pin | ESP32-S3 |
-| --- | ---: |
-| VCC | 3.3 V |
-| GND | GND |
-| CE | GPIO16 |
-| CSN | GPIO17 |
-| SCK | GPIO12 |
-| MOSI | GPIO11 |
-| MISO | GPIO13 |
-| IRQ | Not connected |
-
-### MicroSD
-
-| MicroSD pin | ESP32-S3 |
-| --- | ---: |
-| VCC | 3.3 V* |
-| GND | GND |
-| CS | GPIO21 |
-| SCK / CLK | GPIO12 |
-| MOSI / DI | GPIO11 |
-| MISO / DO | GPIO13 |
-
-\*Check the voltage requirements of the exact MicroSD breakout. Data signals must be safe for 3.3 V logic. FAT32 cards from 8 GB to 32 GB are recommended.
-
-### PN532 (I2C mode)
-
-| PN532 pin | ESP32-S3 |
-| --- | ---: |
-| VCC | 3.3 V |
-| GND | GND |
-| SDA | GPIO1 |
-| SCL | GPIO2 |
-
-Set the module switches or jumpers to I2C mode.
-
-### NEO-M7 GPS
-
-| GPS pin | ESP32-S3 |
-| --- | ---: |
-| VCC | 5 V |
-| GND | GND |
-| TXD | GPIO40 (ESP RX) |
-| RXD | GPIO41 (ESP TX) |
-
-Default baud rate: `9600`.
-
-### Infrared
-
-| Module pin | ESP32-S3 |
-| --- | ---: |
-| IR transmitter VCC | 5 V |
-| IR transmitter DATA | GPIO18 |
-| IR receiver VCC | 3.3 V |
-| IR receiver OUT | GPIO42 |
-| Grounds | GND |
-
-The 5 V transmitter connection assumes a breakout with its own driver transistor and resistor. Do not drive a bare IR LED directly from a GPIO.
-
-### Buttons
-
-Both buttons connect between the GPIO and GND and use internal pull-ups.
-
-| Action | Connection |
-| --- | --- |
-| Next | GPIO38 to button to GND |
-| Select | Short press on GPIO39 |
-| Back | Hold GPIO39 for 800 ms |
-
-## Supported functions
-
-The custom hardware provides the interfaces required by the corresponding Bruce menus:
-
-- Wi-Fi and Bluetooth functions provided by the ESP32-S3
-- CC1101 Sub-GHz scanning, receiving, transmitting, spectrum, and saved signals
-- nRF24L01 tools and 2.4 GHz spectrum functions
-- PN532 NFC tag reading and writing
-- GPS tracking and location-based logging
-- IR capture, replay, and supported protocol transmission
-- LittleFS and MicroSD file storage
-
-Availability can depend on the Bruce version, module variant, antenna, regional radio rules, and stored configuration.
+Inactive CS/CSN lines remain high. CC1101 and nRF24L01 use 3.3 V power and logic. See the [complete pin reference](CUSTOM_HARDWARE.md) for display, power, UART, I2C, infrared, and button connections.
 
 ## Build
 
-1. Install [Visual Studio Code](https://code.visualstudio.com/) and [PlatformIO](https://platformio.org/).
-2. Clone this repository.
-3. Open the repository folder in VS Code.
-4. Select the PlatformIO environment `esp32s3-dilen`.
-5. Build the project.
+Install PlatformIO, then:
 
 ```bash
+git clone https://github.com/dilen1997/Bruce-ESP32S3-Dilen-Custom.git
+cd Bruce-ESP32S3-Dilen-Custom
 pio run -e esp32s3-dilen
 ```
 
-The project build scripts generate a merged firmware image named `Bruce-esp32s3-dilen.bin` in the repository root.
+The project scripts define a merged output named `Bruce-esp32s3-dilen.bin`. Use a freshly built image matching the current source and pin map. The repository does not include a verified prebuilt image for this maintenance revision.
 
-See [CUSTOM_HARDWARE.md](CUSTOM_HARDWARE.md) for the compact hardware reference and [FLASH_INSTRUCTIONS_HE.md](FLASH_INSTRUCTIONS_HE.md) for existing Hebrew flashing notes.
+[Build and validation notes](docs/VALIDATION.md) distinguish source configuration from hardware test evidence. Existing [Hebrew flashing notes](FLASH_INSTRUCTIONS_HE.md) are retained as historical setup guidance.
 
-## Important release note
+## Navigation
 
-Do not use an older prebuilt binary after changing the GPS, IR, or MicroSD pin mapping. Build a fresh image from the current source and publish its SHA-256 checksum together with the release.
+| Input | Action |
+| --- | --- |
+| GPIO38 button | Next |
+| Short press on GPIO39 | Select |
+| Hold GPIO39 for 800 ms | Back |
 
-## Responsible use
+Both buttons connect to GND and use internal pull-ups.
 
-Bruce contains security testing and radio tools. Use this firmware only on equipment, networks, signals, and systems you own or are explicitly authorized to test. Follow local radio, privacy, computer-security, and spectrum regulations.
+## Repository guide
 
-## Upstream and credits
+| Path | Purpose |
+| --- | --- |
+| `boards/ESP32S3-Dilen/` | Custom environment, pin map, and board interface |
+| `boards/_boards_json/esp32s3-dilen.json` | Board memory and upload definition |
+| `src/`, `include/`, `lib/` | Bruce firmware and dependencies |
+| `CUSTOM_HARDWARE.md` | Complete wiring reference |
+| `docs/` | Integration and validation notes |
+| `UPSTREAM_README.md` | Preserved upstream documentation and credits |
 
-- Original project: [Bruce firmware](https://github.com/BruceDevices/firmware)
-- Bruce website: [bruce.computer](https://bruce.computer/)
-- Upstream authors and contributors retain credit for the original project and code.
-- Custom board integration and physical build: Dilen Gershon
+## Scope and responsible use
 
-For the full upstream feature overview and contributor list, see [UPSTREAM_README.md](UPSTREAM_README.md).
+Module presence and menu availability do not establish that every upstream feature has been tested on this custom board. This documentation update does not change radio behavior or claim a fresh full-firmware build. Use radio and security-testing functions only on systems you own or are authorized to test, subject to applicable rules.
 
-## License
+## Credits & license
 
-This modified source remains licensed under the [GNU Affero General Public License v3.0](LICENSE), consistent with the upstream Bruce project. When distributing binaries, provide the corresponding source and preserve the license and attribution notices.
+- Original firmware: **Bruce project and contributors** — [upstream repository](https://github.com/BruceDevices/firmware).
+- Custom hardware assembly and board integration: **Dilen Guerchon**.
+- Firmware license: [GNU AGPL v3.0](LICENSE). Preserve upstream attribution and provide corresponding source when distributing covered binaries.
+
+[View the engineering portfolio](https://github.com/dilen1997/Smart-Charge-Manager/blob/main/docs/PORTFOLIO.md)

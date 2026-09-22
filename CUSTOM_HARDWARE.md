@@ -108,7 +108,9 @@ while communicating with one device.
 
 Use a FAT32-formatted card. An 8-32 GB card is recommended.
 
-## Firmware behavior in r2
+## Historical r2 image notes
+
+These notes describe the earlier full-flash image. No verified prebuilt image is included in this repository revision; build from source for the current pin map.
 
 - The supplied full-flash image starts with `Config -> Dev Mode` enabled.
 - The supplied image replaces the Bruce settings filesystem, removing radio-pin settings left by an older CYD installation.
