@@ -95,7 +95,7 @@ static const uint8_t SCK = SPI_SCK_PIN;
 #define LED_OFF LOW
 
 // UI font sizes
-#define FP 1
+#define FONT_SMALL 1
 #define FM 2
 #define FG 3
 
