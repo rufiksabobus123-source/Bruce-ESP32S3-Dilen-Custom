@@ -36,7 +36,7 @@ if not isfile(join(FRAMEWORK_DIR,mcu, "lib", ".patched")):
         # Arduino-ESP32 3.3.6 uses the unified Xtensa toolchain for ESP32-S3.
         # Calling `pio pkg exec` here also makes an otherwise local build depend
         # on the online package registry, so use the installed objcopy directly.
-        toolchain_dir = env.PioPlatform().get_package_dir("xtensa-esp-elf")
+        toolchain_dir = env.PioPlatform().get_package_dir("toolchain-xtensa-esp-elf")
         objcopy = join(toolchain_dir, "bin", "xtensa-esp-elf-objcopy") if toolchain_dir else ""
         if isfile(objcopy):
             env.Execute(
