@@ -5,46 +5,15 @@
 #include <interface.h>
 
 namespace {
-constexpr uint32_t BUTTON_DEBOUNCE_MS = 25;
 constexpr char HARDWARE_CONFIG_MARKER[] = "/.dilen-hw-r2";
 
-struct DebouncedButton {
-    uint8_t pin;
-    bool rawDown = false;
-    bool stableDown = false;
-    uint32_t rawChangedAt = 0;
-
-    bool update(uint32_t now) {
-        bool readingDown = digitalRead(pin) == BTN_ACT;
-        if (readingDown != rawDown) {
-            rawDown = readingDown;
-            rawChangedAt = now;
-        }
-
-        if (stableDown != rawDown && now - rawChangedAt >= BUTTON_DEBOUNCE_MS) {
-            stableDown = rawDown;
-            return true;
-        }
-        return false;
-    }
-};
-
-// Инициализация четырех кнопок клавиатуры 2x2 под новые пины
-DebouncedButton nextButton{BTN_NEXT_PIN}; // L1 (GPIO 39) -> Следующий
-DebouncedButton prevButton{BTN_PREV_PIN}; // L2 (GPIO 38) -> Прошлый/Вверх
-DebouncedButton backButton{BTN_BACK_PIN}; // R1 (GPIO 37) -> Назад / Esc
-DebouncedButton okButton{BTN_OK_PIN};     // R2 (GPIO 36) -> ОК / Выбор
+uint32_t touchDownTime = 0;
+bool isTouching = false;
+int startX = 0, startY = 0;
+bool longPressTriggered = false;
 } // namespace
 
-/***************************************************************************************
-** Initial board GPIO setup
-***************************************************************************************/
 void _setup_gpio() {
-    pinMode(BTN_NEXT_PIN, INPUT_PULLUP);
-    pinMode(BTN_PREV_PIN, INPUT_PULLUP);
-    pinMode(BTN_BACK_PIN, INPUT_PULLUP);
-    pinMode(BTN_OK_PIN, INPUT_PULLUP);
-
     pinMode(TFT_CS, OUTPUT);
     pinMode(TFT_DC, OUTPUT);
     pinMode(TFT_RST, OUTPUT);
@@ -52,49 +21,9 @@ void _setup_gpio() {
     digitalWrite(TFT_DC, HIGH);
     digitalWrite(TFT_RST, HIGH);
 
-    pinMode(CC1101_SS_PIN, OUTPUT);
-    pinMode(NRF24_SS_PIN, OUTPUT);
-    pinMode(NRF24_CE_PIN, OUTPUT);
-    digitalWrite(CC1101_SS_PIN, HIGH);
-    digitalWrite(NRF24_SS_PIN, HIGH);
-    digitalWrite(NRF24_CE_PIN, LOW);
-
-    bruceConfig.colorInverted = 0;
-    bruceConfigPins.rfModule = CC1101_SPI_MODULE;
-}
-
-/***************************************************************************************
-** Apply the custom board's radio mapping once, after LittleFS settings are loaded.
-***************************************************************************************/
-void _post_setup_gpio() {
-    if (!bruceConfig.devMode) bruceConfig.setDevMode(1);
-
-    if (!LittleFS.exists(HARDWARE_CONFIG_MARKER)) {
-        bruceConfigPins.CC1101_bus = {
-            (gpio_num_t)CC1101_SCK_PIN,
-            (gpio_num_t)CC1101_MISO_PIN,
-            (gpio_num_t)CC1101_MOSI_PIN,
-            (gpio_num_t)CC1101_SS_PIN,
-            (gpio_num_t)CC1101_GDO0_PIN,
-            (gpio_num_t)CC1101_GDO2_PIN
-        };
-        bruceConfigPins.NRF24_bus = {
-            (gpio_num_t)NRF24_SCK_PIN,
-            (gpio_num_t)NRF24_MISO_PIN,
-            (gpio_num_t)NRF24_MOSI_PIN,
-            (gpio_num_t)NRF24_SS_PIN,
-            (gpio_num_t)NRF24_CE_PIN,
-            GPIO_NUM_NC
-        };
-        bruceConfigPins.rfModule = CC1101_SPI_MODULE;
-        bruceConfigPins.saveFile();
-
-        File marker = LittleFS.open(HARDWARE_CONFIG_MARKER, FILE_WRITE);
-        if (marker) {
-            marker.print(BRUCE_VERSION);
-            marker.close();
-        }
-        Serial.println("Dilen radio pin configuration migrated to r2");
+    if (TOUCH_CS != -1) {
+        pinMode(TOUCH_CS, OUTPUT);
+        digitalWrite(TOUCH_CS, HIGH);
     }
 
     pinMode(CC1101_SS_PIN, OUTPUT);
@@ -102,7 +31,22 @@ void _post_setup_gpio() {
     pinMode(NRF24_CE_PIN, OUTPUT);
     digitalWrite(CC1101_SS_PIN, HIGH);
     digitalWrite(NRF24_SS_PIN, HIGH);
-    digitalWrite(NRF24_CE_PIN, LOW);
+    digitalWrite(CC1101_CE_PIN, LOW);
+
+    bruceConfig.colorInverted = 0;
+    bruceConfigPins.rfModule = CC1101_SPI_MODULE;
+}
+
+void _post_setup_gpio() {
+    if (!bruceConfig.devMode) bruceConfig.setDevMode(1);
+
+    if (!LittleFS.exists(HARDWARE_CONFIG_MARKER)) {
+        File marker = LittleFS.open(HARDWARE_CONFIG_MARKER, FILE_WRITE);
+        if (marker) {
+            marker.print(BRUCE_VERSION);
+            marker.close();
+        }
+    }
 }
 
 int getBattery() { return 0; }
@@ -110,46 +54,48 @@ bool isCharging() { return false; }
 void _setBrightness(uint8_t brightval) { (void)brightval; }
 
 /***************************************************************************************
-** Input Handler для 4 кнопок (Keypad 2x2)
+** Input Handler: Управление тачскрином (XPT2046)
 ***************************************************************************************/
 void InputHandler(void) {
-    const uint32_t now = millis();
-    
-    bool nextChg = nextButton.update(now);
-    bool prevChg = prevButton.update(now);
-    bool backChg = backButton.update(now);
-    bool okChg   = okButton.update(now);
+    uint16_t x = 0, y = 0;
+    bool pressed = tft.getTouch(&x, &y);
+    uint32_t now = millis();
 
-    // Пробуждение экрана при нажатии любой кнопки
-    if ((nextChg && nextButton.stableDown) ||
-        (prevChg && prevButton.stableDown) ||
-        (backChg && backButton.stableDown) ||
-        (okChg && okButton.stableDown)) {
-        if (wakeUpScreen()) return;
-    }
-
-    // Кнопка L1: Следующий пункт (вниз по меню)
-    if (nextChg && nextButton.stableDown) {
-        NextPress = true;
-        AnyKeyPress = true;
-    }
-
-    // Кнопка L2: Прошлый пункт (вверх по меню)
-    if (prevChg && prevButton.stableDown) {
-        UpPress = true;
-        AnyKeyPress = true;
-    }
-
-    // Кнопка R1: Назад (Esc)
-    if (backChg && backButton.stableDown) {
-        EscPress = true;
-        AnyKeyPress = true;
-    }
-
-    // Кнопка R2: ОК / Выбор (Select)
-    if (okChg && okButton.stableDown) {
-        SelPress = true;
-        AnyKeyPress = true;
+    if (pressed) {
+        if (!isTouching) {
+            isTouching = true;
+            touchDownTime = now;
+            startX = x;
+            startY = y;
+            longPressTriggered = false;
+        } else {
+            // Долгое зажатие (> 600 мс) = Esc / Назад
+            if (!longPressTriggered && (now - touchDownTime > 600)) {
+                EscPress = true;
+                AnyKeyPress = true;
+                longPressTriggered = true;
+            }
+        }
+    } else {
+        if (isTouching) {
+            if (!longPressTriggered) {
+                uint32_t duration = now - touchDownTime;
+                
+                // Короткий тап (< 500 мс)
+                if (duration < 500) {
+                    if (startX < 80) {
+                        UpPress = true;     // Левая часть ($X < 80$) = Влево / Прошлый
+                    } else if (startX > 160) {
+                        NextPress = true;   // Правая часть ($X > 160$) = Вправо / Следующий
+                    } else {
+                        SelPress = true;    // Центр ($80 \le X \le 160$) = ОК / Выбор
+                    }
+                    AnyKeyPress = true;
+                }
+            }
+            isTouching = false;
+            longPressTriggered = false;
+        }
     }
 }
 
