@@ -29,11 +29,11 @@ struct DebouncedButton {
     }
 };
 
-// Инициализация четырех кнопок клавиатуры 2x2
-DebouncedButton nextButton{BTN_NEXT_PIN}; // L1 (GPIO 1) -> Следующий
-DebouncedButton prevButton{BTN_PREV_PIN}; // L2 (GPIO 2) -> Прошлый/Вверх
-DebouncedButton backButton{BTN_BACK_PIN}; // R1 (GPIO 3) -> Назад / Esc
-DebouncedButton okButton{BTN_OK_PIN};     // R2 (GPIO 14) -> ОК / Выбор
+// Инициализация четырех кнопок клавиатуры 2x2 под новые пины
+DebouncedButton nextButton{BTN_NEXT_PIN}; // L1 (GPIO 39) -> Следующий
+DebouncedButton prevButton{BTN_PREV_PIN}; // L2 (GPIO 38) -> Прошлый/Вверх
+DebouncedButton backButton{BTN_BACK_PIN}; // R1 (GPIO 37) -> Назад / Esc
+DebouncedButton okButton{BTN_OK_PIN};     // R2 (GPIO 36) -> ОК / Выбор
 } // namespace
 
 /***************************************************************************************
@@ -65,8 +65,6 @@ void _setup_gpio() {
 
 /***************************************************************************************
 ** Apply the custom board's radio mapping once, after LittleFS settings are loaded.
-** This migrates pin settings left by a previously installed CYD build while still
-** allowing later changes made from Dev Mode to persist across reboots.
 ***************************************************************************************/
 void _post_setup_gpio() {
     if (!bruceConfig.devMode) bruceConfig.setDevMode(1);
@@ -99,42 +97,16 @@ void _post_setup_gpio() {
         Serial.println("Dilen radio pin configuration migrated to r2");
     }
 
-    // Keep both devices deselected before either radio driver starts the shared bus.
     pinMode(CC1101_SS_PIN, OUTPUT);
     pinMode(NRF24_SS_PIN, OUTPUT);
     pinMode(NRF24_CE_PIN, OUTPUT);
     digitalWrite(CC1101_SS_PIN, HIGH);
     digitalWrite(NRF24_SS_PIN, HIGH);
     digitalWrite(NRF24_CE_PIN, LOW);
-
-    Serial.printf(
-        "CC1101 SPI: SCK=%d MISO=%d MOSI=%d CS=%d GDO0=%d\n",
-        bruceConfigPins.CC1101_bus.sck,
-        bruceConfigPins.CC1101_bus.miso,
-        bruceConfigPins.CC1101_bus.mosi,
-        bruceConfigPins.CC1101_bus.cs,
-        bruceConfigPins.CC1101_bus.io0
-    );
-    Serial.printf(
-        "nRF24 SPI: SCK=%d MISO=%d MOSI=%d CSN=%d CE=%d\n",
-        bruceConfigPins.NRF24_bus.sck,
-        bruceConfigPins.NRF24_bus.miso,
-        bruceConfigPins.NRF24_bus.mosi,
-        bruceConfigPins.NRF24_bus.cs,
-        bruceConfigPins.NRF24_bus.io0
-    );
 }
 
-/***************************************************************************************
-** No battery monitor is connected
-***************************************************************************************/
 int getBattery() { return 0; }
-
 bool isCharging() { return false; }
-
-/***************************************************************************************
-** Backlight is wired directly to 3.3 V, so firmware dimming is unavailable
-***************************************************************************************/
 void _setBrightness(uint8_t brightval) { (void)brightval; }
 
 /***************************************************************************************
@@ -182,5 +154,4 @@ void InputHandler(void) {
 }
 
 void powerOff() {}
-
 void checkReboot() {}
