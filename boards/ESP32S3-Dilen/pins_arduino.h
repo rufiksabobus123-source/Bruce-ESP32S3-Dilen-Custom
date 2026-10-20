@@ -16,9 +16,9 @@
 static const uint8_t TX = SERIAL_TX;
 static const uint8_t RX = SERIAL_RX;
 
-// Free expansion pins used as the default I2C/Grove bus
-#define GROVE_SDA 1
-#define GROVE_SCL 2
+// Free expansion pins (Grove I2C переопределен под клавиатуру)
+#define GROVE_SDA -1
+#define GROVE_SCL -1
 static const uint8_t SDA = GROVE_SDA;
 static const uint8_t SCL = GROVE_SCL;
 
@@ -77,14 +77,14 @@ static const uint8_t SCK = SPI_SCK_PIN;
 #define ROTATION 1
 #define MINBRIGHT 0
 
-// Two-button navigation
-#define NEXT_BTN 38
-#define ACTION_BTN 39
-#define DW_BTN NEXT_BTN
-#define SEL_BTN ACTION_BTN
+// Four-button keypad configuration (KeyPad 2x2)
+#define BTN_NEXT_PIN  1   // Подключите к L1
+#define BTN_PREV_PIN  2   // Подключите к L2
+#define BTN_BACK_PIN  3   // Подключите к R1
+#define BTN_OK_PIN    14  // Подключите к R2
+
 #define BTN_ACT LOW
-#define BTN_ALIAS "OK"
-#define DEEPSLEEP_WAKEUP_PIN ACTION_BTN
+#define DEEPSLEEP_WAKEUP_PIN BTN_OK_PIN
 
 // External infrared modules
 #define TXLED 18
