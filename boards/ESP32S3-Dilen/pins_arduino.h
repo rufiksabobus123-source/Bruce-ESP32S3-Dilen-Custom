@@ -78,10 +78,10 @@ static const uint8_t SCK = SPI_SCK_PIN;
 #define MINBRIGHT 0
 
 // Four-button keypad configuration (KeyPad 2x2)
-#define BTN_NEXT_PIN  1   // Подключите к L1
-#define BTN_PREV_PIN  2   // Подключите к L2
-#define BTN_BACK_PIN  3   // Подключите к R1
-#define BTN_OK_PIN    14  // Подключите к R2
+#define BTN_NEXT_PIN  39   // Подключите к L1
+#define BTN_PREV_PIN  38   // Подключите к L2
+#define BTN_BACK_PIN  37   // Подключите к R1
+#define BTN_OK_PIN    36   // Подключите к R2
 
 #define BTN_ACT LOW
 #define DEEPSLEEP_WAKEUP_PIN BTN_OK_PIN
