@@ -6,7 +6,6 @@
 
 namespace {
 constexpr uint32_t BUTTON_DEBOUNCE_MS = 25;
-constexpr uint32_t ACTION_LONG_PRESS_MS = 800;
 constexpr char HARDWARE_CONFIG_MARKER[] = "/.dilen-hw-r2";
 
 struct DebouncedButton {
@@ -30,19 +29,21 @@ struct DebouncedButton {
     }
 };
 
-DebouncedButton nextButton{NEXT_BTN};
-DebouncedButton actionButton{ACTION_BTN};
-uint32_t actionPressedAt = 0;
-bool actionLongFired = false;
-bool actionWakeConsumed = false;
+// Инициализация четырех кнопок клавиатуры 2x2
+DebouncedButton nextButton{BTN_NEXT_PIN}; // L1 (GPIO 1) -> Следующий
+DebouncedButton prevButton{BTN_PREV_PIN}; // L2 (GPIO 2) -> Прошлый/Вверх
+DebouncedButton backButton{BTN_BACK_PIN}; // R1 (GPIO 3) -> Назад / Esc
+DebouncedButton okButton{BTN_OK_PIN};     // R2 (GPIO 14) -> ОК / Выбор
 } // namespace
 
 /***************************************************************************************
 ** Initial board GPIO setup
 ***************************************************************************************/
 void _setup_gpio() {
-    pinMode(NEXT_BTN, INPUT_PULLUP);
-    pinMode(ACTION_BTN, INPUT_PULLUP);
+    pinMode(BTN_NEXT_PIN, INPUT_PULLUP);
+    pinMode(BTN_PREV_PIN, INPUT_PULLUP);
+    pinMode(BTN_BACK_PIN, INPUT_PULLUP);
+    pinMode(BTN_OK_PIN, INPUT_PULLUP);
 
     pinMode(TFT_CS, OUTPUT);
     pinMode(TFT_DC, OUTPUT);
@@ -137,42 +138,46 @@ bool isCharging() { return false; }
 void _setBrightness(uint8_t brightval) { (void)brightval; }
 
 /***************************************************************************************
-** GPIO38: Next
-** GPIO39 short press: Select
-** GPIO39 held for 800 ms: Back/Escape
+** Input Handler для 4 кнопок (Keypad 2x2)
 ***************************************************************************************/
 void InputHandler(void) {
     const uint32_t now = millis();
-    const bool nextChanged = nextButton.update(now);
-    const bool actionChanged = actionButton.update(now);
+    
+    bool nextChg = nextButton.update(now);
+    bool prevChg = prevButton.update(now);
+    bool backChg = backButton.update(now);
+    bool okChg   = okButton.update(now);
 
-    if (nextChanged && nextButton.stableDown) {
+    // Пробуждение экрана при нажатии любой кнопки
+    if ((nextChg && nextButton.stableDown) ||
+        (prevChg && prevButton.stableDown) ||
+        (backChg && backButton.stableDown) ||
+        (okChg && okButton.stableDown)) {
         if (wakeUpScreen()) return;
+    }
+
+    // Кнопка L1: Следующий пункт (вниз по меню)
+    if (nextChg && nextButton.stableDown) {
         NextPress = true;
         AnyKeyPress = true;
     }
 
-    if (actionChanged && actionButton.stableDown) {
-        actionPressedAt = now;
-        actionLongFired = false;
-        actionWakeConsumed = wakeUpScreen();
-        if (actionWakeConsumed) return;
+    // Кнопка L2: Прошлый пункт (вверх по меню)
+    if (prevChg && prevButton.stableDown) {
+        UpPress = true;
+        AnyKeyPress = true;
     }
 
-    if (actionButton.stableDown && !actionLongFired && !actionWakeConsumed &&
-        now - actionPressedAt >= ACTION_LONG_PRESS_MS) {
-        actionLongFired = true;
+    // Кнопка R1: Назад (Esc)
+    if (backChg && backButton.stableDown) {
         EscPress = true;
         AnyKeyPress = true;
     }
 
-    if (actionChanged && !actionButton.stableDown) {
-        if (!actionLongFired && !actionWakeConsumed) {
-            SelPress = true;
-            AnyKeyPress = true;
-        }
-        actionLongFired = false;
-        actionWakeConsumed = false;
+    // Кнопка R2: ОК / Выбор (Select)
+    if (okChg && okButton.stableDown) {
+        SelPress = true;
+        AnyKeyPress = true;
     }
 }
 
