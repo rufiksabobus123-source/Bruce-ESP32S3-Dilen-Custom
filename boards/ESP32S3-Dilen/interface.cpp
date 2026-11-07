@@ -31,7 +31,7 @@ void _setup_gpio() {
     pinMode(NRF24_CE_PIN, OUTPUT);
     digitalWrite(CC1101_SS_PIN, HIGH);
     digitalWrite(NRF24_SS_PIN, HIGH);
-    digitalWrite(CC1101_CE_PIN, LOW);
+    digitalWrite(NRF24_CE_PIN, LOW);
 
     bruceConfig.colorInverted = 0;
     bruceConfigPins.rfModule = CC1101_SPI_MODULE;
@@ -84,11 +84,11 @@ void InputHandler(void) {
                 // Короткий тап (< 500 мс)
                 if (duration < 500) {
                     if (startX < 80) {
-                        UpPress = true;     // Левая часть ($X < 80$) = Влево / Прошлый
+                        UpPress = true;   // Левая часть (X < 80) = Влево / Прошлый
                     } else if (startX > 160) {
-                        NextPress = true;   // Правая часть ($X > 160$) = Вправо / Следующий
+                        NextPress = true;   // Правая часть (X > 160) = Вправо / Следующий
                     } else {
-                        SelPress = true;    // Центр ($80 \le X \le 160$) = ОК / Выбор
+                        SelPress = true;    // Центр (80 <= X <= 160) = ОК / Выбор
                     }
                     AnyKeyPress = true;
                 }
