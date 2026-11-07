@@ -148,19 +148,11 @@ jobs:
             echo "Build log not found; nothing to show."
           fi
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Bruce-${{ env.SELECTED_ENV }}
-          path: Bruce-*.*
-          retention-days: 1
-          if-no-files-found: error
-
-      - name: Display Build Info
-        run: |
-          echo "Build completed successfully!"
-          echo "Environment: ${{ env.SELECTED_ENV }}"
-          echo "Version: ${{ steps.prepare_version.outputs.VERSION }}"
-          echo "Git Hash: $(git describe --always --dirty)"
-          echo "Built files:"
-          ls -la Bruce-*.* 2>/dev/null || echo "No Bruce files found"
+          - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Bruce-Firmware
+        path: |
+          Bruce-*.*
+          .pio/build/**/*.bin
+        retention-days: 1
